@@ -20,7 +20,6 @@
     --emerald: #34D399;
     --emerald-glow: rgba(52, 211, 153, 0.25);
     --amber: #FBBF24;
-    --amber-glow: rgba(251, 191, 36, 0.25);
     --rose: #F87171;
     --rose-glow: rgba(248, 113, 113, 0.25);
     
@@ -424,7 +423,8 @@
   const FALLBACK_COLORS = ["#2DD4BF","#818CF8","#FACC15","#F472B6","#A3E635"];
 
   async function fetchReport(phoneStr) {
-    const apiUrl = `https://infodokan.nagad.us.cc/apilab/Sub-Fraud.php?phone=${phoneStr}`;
+    // Note: The /api/check route will be used by Vercel for CORS bypassing
+    const apiUrl = `/api/check?phone=${phoneStr}`;
     try {
       const response = await fetch(apiUrl, { method: 'GET' });
       const json = await response.json();
@@ -442,7 +442,6 @@
   function getRiskStyling(level, rate) {
     let hex = "var(--emerald)", glow = "pulse-excellent", label = "Excellent";
     const lvl = (level || "").toLowerCase();
-    // Adjusted logic so that 0 doesn't trigger "High Risk" automatically unless API explicitly says so
     if (lvl.includes("high") || (rate < 50 && rate > 0)) { hex = "var(--rose)"; glow = "pulse-risk"; label = "High Risk"; } 
     else if (lvl.includes("moderate") || (rate < 80 && rate > 0)) { hex = "var(--amber)"; glow = "pulse-caution"; label = "Caution"; }
     return { hex, glow, label };
@@ -595,7 +594,6 @@
   }
 
   function buildHiddenDOM(report) {
-    // Completely un-hardcoded error handling
     if (!report.valid) {
       reportMount.innerHTML = `
         <div class="report-card">
@@ -609,13 +607,25 @@
       return;
     }
 
+    if (!report.couriers || report.couriers.length === 0 || parseInt(report.totalOrders || 0) === 0){
+      reportMount.innerHTML = `
+        <div class="report-card">
+          <div class="empty-state">
+            <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path><polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline><line x1="12" y1="22.08" x2="12" y2="12"></line></svg>
+            <h3 class="empty-title">No Records Found</h3>
+            <p class="empty-desc">We couldn't find active delivery history for this number across our monitored networks.</p>
+          </div>
+        </div>`;
+      footNote.textContent = "";
+      return;
+    }
+
     const overallRate = report.deliveryRate || 0;
     const styleData = getRiskStyling(report.riskLevel, overallRate);
     const circ = 440; 
     const pStr = report.phoneNumber || report.rawPhone;
     const formattedPhone = pStr.length === 11 ? `${pStr.slice(0,5)}-${pStr.slice(5)}` : pStr;
 
-    // Renders exactly what the API returns (0 orders will display correctly with the proper riskMessage)
     let html = `
       <div class="report-card">
         <div class="scanline run"></div>
@@ -653,7 +663,6 @@
         <div class="ledger-header"><span>Logistics Partner</span><span>Orders</span><span>Fulfillment</span><span></span></div>
     `;
 
-    // Dynamic Filter: Only render couriers with > 0 orders
     const activeCouriers = report.couriers ? report.couriers.filter(c => parseInt(c.orders, 10) > 0) : [];
 
     if (activeCouriers.length > 0) {
@@ -671,14 +680,12 @@
           </div>`;
       });
     } else {
-      // Correct graceful state for numbers with 0 recorded orders
       html += `<div class="ledger-row empty-row">No individual courier history recorded for this number.</div>`;
     }
 
     html += `</div>`;
     reportMount.innerHTML = html;
     
-    // Fallback length check just in case report.couriers is undefined
     const totalNetworks = report.couriers ? report.couriers.length : 0;
     footNote.textContent = `Analyzed historical data across ${totalNetworks} connected networks.`;
   }
@@ -695,7 +702,6 @@
     ].filter(t => t.el);
 
     if (!targets.length) {
-       // If no targets (e.g. API error state), reveal hidden immediately 
        document.querySelectorAll('.target-hidden').forEach(el => el.classList.add('target-revealed'));
        return; 
     }
