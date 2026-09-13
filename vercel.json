@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    {
+      "source": "/api/check",
+      "destination": "https://infodokan.nagad.us.cc/apilab/Sub-Fraud.php"
+    }
+  ]
+}
